@@ -1,0 +1,139 @@
+--// Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local player = Players.LocalPlayer
+local mouse = player:GetMouse()
+local PlayerGui = player:WaitForChild("PlayerGui")
+
+--// GUI
+local gui = Instance.new("ScreenGui")
+gui.Name = "MobileButtons"
+gui.IgnoreGuiInset = true
+gui.ResetOnSpawn = false
+gui.Parent = PlayerGui
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 300, 0, 130)
+frame.Position = UDim2.new(0.5, -150, 0.7, 0)
+frame.BackgroundColor3 = Color3.fromRGB(30,30,30)
+frame.BackgroundTransparency = 0.2
+frame.Parent = gui
+Instance.new("UICorner", frame).CornerRadius = UDim.new(0,12)
+
+local label = Instance.new("TextLabel")
+label.Size = UDim2.new(1,0,0.2,0)
+label.Position = UDim2.new(0,0,0,0)
+label.BackgroundTransparency = 1
+label.Text = "Select a target"
+label.TextColor3 = Color3.new(1,1,1)
+label.TextScaled = true
+label.Parent = frame
+
+--// Buttons
+local function createButton(text,pos)
+	local btn = Instance.new("TextButton")
+	btn.Size = UDim2.new(0.45,0,0.7,0)
+	btn.Position = pos
+	btn.Text = text
+	btn.TextScaled = true
+	btn.Font = Enum.Font.GothamBold
+	btn.BackgroundColor3 = Color3.fromRGB(60,60,60)
+	btn.TextColor3 = Color3.new(1,1,1)
+	btn.Parent = frame
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0,10)
+	return btn
+end
+
+local button1 = createButton("1", UDim2.new(0.05,0,0.25,0))
+local button2 = createButton("2", UDim2.new(0.5,0,0.25,0))
+
+--// Humanoid selection
+local selectedHumanoid = nil
+
+local function highlightModel(model)
+	for _, v in pairs(workspace:GetChildren()) do
+		local hl = v:FindFirstChildOfClass("Highlight")
+		if hl then hl:Destroy() end
+	end
+	if model then
+		local hl = Instance.new("Highlight")
+		hl.FillTransparency = 0.6
+		hl.OutlineColor = Color3.fromRGB(255,255,0)
+		hl.Parent = model
+	end
+end
+
+mouse.Button1Down:Connect(function()
+	local target = mouse.Target
+	if target then
+		local model = target:FindFirstAncestorOfClass("Model")
+		if model and model:FindFirstChildOfClass("Humanoid") then
+			selectedHumanoid = model:FindFirstChildOfClass("Humanoid")
+			highlightModel(model)
+			label.Text = "Selected: "..model.Name
+		end
+	end
+end)
+
+--// Shared Cooldown System
+local cooldownActive = false
+
+local function startSharedCooldown(duration)
+	if cooldownActive then return end
+	cooldownActive = true
+
+	button1.AutoButtonColor = false
+	button2.AutoButtonColor = false
+	button1.BackgroundColor3 = Color3.fromRGB(120,50,50)
+	button2.BackgroundColor3 = Color3.fromRGB(120,50,50)
+
+	local startTime = os.clock()
+	local conn
+	conn = RunService.Heartbeat:Connect(function()
+		local remaining = math.ceil(duration - (os.clock() - startTime))
+		if remaining <= 0 then
+			cooldownActive = false
+			button1.Text = "1"
+			button2.Text = "2"
+			button1.BackgroundColor3 = Color3.fromRGB(60,60,60)
+			button2.BackgroundColor3 = Color3.fromRGB(60,60,60)
+			button1.AutoButtonColor = true
+			button2.AutoButtonColor = true
+			conn:Disconnect()
+		else
+			button1.Text = tostring(remaining)
+			button2.Text = tostring(remaining)
+		end
+	end)
+end
+
+--// Remote
+local remote = PlayerGui:WaitForChild("ScreenGui"):WaitForChild("RemoteEvent")
+
+--// Button 1: "thyend"
+button1.MouseButton1Click:Connect(function()
+	if cooldownActive then return end
+	remote:FireServer("thyend")
+	label.Text = "Cooldown (shared)"
+	startSharedCooldown(15) -- 15s shared cooldown
+end)
+
+--// Button 2: "judgement" on selected humanoid
+button2.MouseButton1Click:Connect(function()
+	if cooldownActive then return end
+	if not selectedHumanoid then
+		warn("No humanoid selected")
+		return
+	end
+	remote:FireServer("judgement", selectedHumanoid)
+	label.Text = "Cooldown (shared)"
+	startSharedCooldown(40) -- 40s shared cooldown
+end)
+
+--// Keyboard support
+UserInputService.InputBegan:Connect(function(input,processed)
+	if processed then return end
+	if input.KeyCode==Enum.KeyCode.One then button1:Activate() end
+	if input.KeyCode==Enum.KeyCode.Two then button2:Activate() end
+end)
